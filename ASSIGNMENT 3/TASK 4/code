@@ -1,0 +1,82 @@
+
+class ScannerStation extends Thread {
+
+    int scripts;
+
+    ScannerStation(String name, int scripts) {
+        super(name);
+        this.scripts = scripts;
+    }
+
+    public void run() {
+        try {
+            for (int i = 1; i <= scripts; i++) {
+                Thread.sleep(100);
+            }
+
+            System.out.println(getName()
+                + " scanned " + scripts + " scripts");
+
+        } catch (InterruptedException e) {
+            System.out.println("Thread interrupted");
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+class RunnableStation implements Runnable {
+
+    String name;
+    int scripts;
+
+    RunnableStation(String name, int scripts) {
+        this.name = name;
+        this.scripts = scripts;
+    }
+
+    public void run() {
+        try {
+            for (int i = 1; i <= scripts; i++) {
+                Thread.sleep(100);
+            }
+
+            System.out.println(name
+                + " scanned " + scripts + " scripts");
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+public class ThreadCreationDemo {
+
+    public static void main(String[] args)
+            throws InterruptedException {
+
+        Thread t1 = new ScannerStation("Station A", 3);
+
+        Thread t2 = new Thread(
+            new RunnableStation("Station B", 4));
+
+        Thread t3 = new ScannerStation("Station C", 2);
+
+        Thread t4 = new Thread(
+            new RunnableStation("Station D", 5));
+
+        Thread[] stations = {t1, t2, t3, t4};
+
+        for (Thread t : stations) {
+            t.start();
+            System.out.println(t.getName()
+                + " is alive: " + t.isAlive());
+        }
+
+        for (Thread t : stations) {
+            t.join();
+        }
+
+        System.out.println("All stations completed.");
+        System.out.println("Total scripts scanned: 14");
+    }
+}
