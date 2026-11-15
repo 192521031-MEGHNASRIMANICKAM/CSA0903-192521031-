@@ -1,0 +1,52 @@
+
+import java.io.*;
+
+public class SalesReportAuto {
+
+    static void generateReport(String[] files, String output) {
+
+        int total = 0;
+
+        try (BufferedWriter writer =
+                 new BufferedWriter(new FileWriter(output))) {
+
+            writer.write("DAILY SALES REPORT\n");
+
+            for (String file : files) {
+
+                try (BufferedReader reader =
+                         new BufferedReader(new FileReader(file))) {
+
+                    String line;
+
+                    while ((line = reader.readLine()) != null) {
+                        total += Integer.parseInt(line.trim());
+                    }
+
+                } catch (IOException | NumberFormatException e) {
+                    System.out.println(
+                        "Error in " + file + ": " + e.getMessage());
+                }
+            }
+
+            writer.write("Total sales: " + total);
+
+        } catch (IOException e) {
+            System.out.println("Report error: " + e.getMessage());
+        }
+
+        System.out.println("Total sales: " + total);
+        System.out.println("Report generated successfully.");
+    }
+
+    public static void main(String[] args) {
+
+        String[] files = {
+            "store1.txt",
+            "store2.txt",
+            "missing.txt"
+        };
+
+        generateReport(files, "summary.txt");
+    }
+}
