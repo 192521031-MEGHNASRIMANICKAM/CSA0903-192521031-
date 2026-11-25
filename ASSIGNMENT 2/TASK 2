@@ -1,0 +1,82 @@
+import java.util.*;
+
+public class ListBench {
+    static int sink;
+    static final int OPS = 1000;
+
+    static double[] benchList(List<Integer> l, int n) {   // ms: addEnd, insFront, insMid, remFront, getK, iterate
+        double[] r = new double[6];
+        long t = System.nanoTime();
+        for (int i = 0; i < n; i++) l.add(i);                       r[0] = lap(t); t = System.nanoTime();
+        for (int i = 0; i < OPS; i++) l.add(0, i);                  r[1] = lap(t); t = System.nanoTime();
+        for (int i = 0; i < OPS; i++) l.add(l.size() / 2, i);       r[2] = lap(t); t = System.nanoTime();
+        for (int i = 0; i < OPS; i++) l.remove(0);                  r[3] = lap(t); t = System.nanoTime();
+        Random rnd = new Random(1);
+        for (int i = 0; i < OPS; i++) sink += l.get(rnd.nextInt(l.size()));   r[4] = lap(t); t = System.nanoTime();
+        long s = 0; for (int x : l) s += x; sink += (int) s;        r[5] = lap(t);
+        return r;
+    }
+    static double[] benchDeque(int n) {
+        double[] r = new double[6]; Arrays.fill(r, Double.NaN);
+        ArrayDeque<Integer> d = new ArrayDeque<>();
+        long t = System.nanoTime();
+        for (int i = 0; i < n; i++) d.addLast(i);                   r[0] = lap(t); t = System.nanoTime();
+        for (int i = 0; i < OPS; i++) d.addFirst(i);                r[1] = lap(t); t = System.nanoTime();
+        for (int i = 0; i < OPS; i++) d.pollFirst();                r[3] = lap(t); t = System.nanoTime();
+        long s = 0; for (int x : d) s += x; sink += (int) s;        r[5] = lap(t);
+        return r;
+    }
+    static double[] benchArray(int n) {                              // plain array, manual shifting
+        double[] r = new double[6]; Arrays.fill(r, Double.NaN);
+        int[] a = new int[n + OPS + 1]; int size = n;
+        long t = System.nanoTime();
+        for (int i = 0; i < OPS; i++) { for (int j = size; j > 0; j--) a[j] = a[j - 1]; a[0] = i; size++; }
+        r[1] = lap(t);
+        return r;
+    }
+    static double lap(long t) { return (System.nanoTime() - t) / 1e6; }
+    static double[] avg(java.util.function.Supplier<double[]> s, int runs) {
+        double[] sum = new double[6];
+        for (int i = 0; i < runs; i++) { double[] r = s.get(); for (int k = 0; k < 6; k++) sum[k] += r[k]; }
+        for (int k = 0; k < 6; k++) sum[k] /= runs;
+        return sum;
+    }
+    static String f(double v) { return Double.isNaN(v) ? "    n/a" : String.format("%7.2f", v); }
+
+    public static void main(String[] a) {
+        for (int w = 0; w < 2; w++) { benchList(new ArrayList<>(), 10000); benchList(new LinkedList<>(), 10000); benchDeque(10000); } // warm-up
+        System.out.println("Time in ms (avg of 3 runs). insert/remove/get use " + OPS + " operations each; add-end/iterate cover all n.");
+        System.out.printf("%-8s %-18s %7s %9s %9s %9s %9s %9s%n", "n", "Structure", "addEnd", "insFront", "insMid", "remFront", "get(k)", "iterate");
+        System.out.println("-".repeat(88));
+        for (int n : new int[]{10000, 50000, 100000}) {
+            Object[][] rows = {
+                {"ArrayList", avg(() -> benchList(new ArrayList<>(), n), 3)},
+                {"LinkedList", avg(() -> benchList(new LinkedList<>(), n), 3)},
+                {"ArrayDeque", avg(() -> benchDeque(n), 3)},
+                {"int[] manual shift", avg(() -> benchArray(n), 3)}};
+            for (Object[] row : rows) {
+                double[] r = (double[]) row[1];
+                System.out.printf("%-8d %-18s %s  %s  %s  %s  %s  %s%n", n, row[0], f(r[0]), f(r[1]), f(r[2]), f(r[3]), f(r[4]), f(r[5]));
+            }
+            System.out.println();
+        }
+        System.out.println("'Up Next' queue: m x (addFirst, addLast, removeFirst), time in ms");
+        System.out.printf("%-8s %12s %12s %12s%n", "m", "ArrayList", "LinkedList", "ArrayDeque");
+        for (int m : new int[]{10000, 20000, 40000}) {
+            double al = 0, ll = 0, ad = 0;
+            for (int k = 0; k < 4; k++) { double x = upNext(new ArrayList<>(), m), y = upNext(new LinkedList<>(), m), z = upNextDeque(m); if (k > 0) { al += x / 3; ll += y / 3; ad += z / 3; } }
+            System.out.printf("%-8d %12.2f %12.2f %12.2f%n", m, al, ll, ad);
+        }
+    }
+    static double upNext(List<Integer> l, int m) {
+        long t = System.nanoTime();
+        for (int i = 0; i < m; i++) { l.add(0, i); l.add(i); l.remove(0); }
+        return lap(t);
+    }
+    static double upNextDeque(int m) {
+        ArrayDeque<Integer> d = new ArrayDeque<>();
+        long t = System.nanoTime();
+        for (int i = 0; i < m; i++) { d.addFirst(i); d.addLast(i); d.pollFirst(); }
+        return lap(t);
+    }
+}
