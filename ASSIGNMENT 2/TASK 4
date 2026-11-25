@@ -1,0 +1,71 @@
+import java.util.*;
+
+public class MedicineBench {
+    record Medicine(String code, String name, int qty) {}
+    static long sink;
+
+    static double ms(long t) { return (System.nanoTime() - t) / 1e6; }
+
+    public static void main(String[] args) {
+        System.out.println("Times in ms, average of 5 runs after warm-up. 100,000 random lookups per run.");
+        System.out.printf("%-8s %-16s %10s %12s %14s %14s %s%n", "n", "Structure", "build", "100k lookup", "code-order rpt", "added-order rpt", "order check");
+        System.out.println("-".repeat(104));
+        for (int w = 0; w < 3; w++) one(2000, false);
+        for (int n : new int[]{1000, 10000, 100000}) one(n, true);
+    }
+
+    static void one(int n, boolean print) {
+        List<String> insertion = new ArrayList<>();
+        for (int i = 0; i < n; i++) insertion.add(String.format("MED%07d", i * 7 + 13));
+        Collections.shuffle(insertion, new Random(42));              // codes arrive in random order
+        List<String> sorted = new ArrayList<>(insertion); Collections.sort(sorted);
+        Random rnd = new Random(7);
+        String[] probes = new String[100000];
+        for (int i = 0; i < probes.length; i++) probes[i] = insertion.get(rnd.nextInt(n));
+        final int R = 5;
+        double[][] t = new double[4][4];                              // structure x {build, lookup, codeRpt, addedRpt}
+        String[] check = new String[4];
+        for (int run = 0; run < R; run++) {
+            // HashMap
+            long s = System.nanoTime(); Map<String, Medicine> hm = new HashMap<>();
+            for (String c : insertion) hm.put(c, new Medicine(c, "m", 5)); t[0][0] += ms(s);
+            t[0][1] += lookups(hm, probes);
+            s = System.nanoTime(); List<String> k = new ArrayList<>(hm.keySet()); Collections.sort(k); for (String c : k) sink += hm.get(c).qty(); t[0][2] += ms(s);
+            s = System.nanoTime(); for (String c : hm.keySet()) sink += hm.get(c).qty(); t[0][3] += ms(s);
+            check[0] = (k.equals(sorted) ? "code:OK" : "code:BAD") + (new ArrayList<>(hm.keySet()).equals(insertion) ? " added:OK" : " added:NO (lost)");
+            // TreeMap
+            s = System.nanoTime(); Map<String, Medicine> tm = new TreeMap<>();
+            for (String c : insertion) tm.put(c, new Medicine(c, "m", 5)); t[1][0] += ms(s);
+            t[1][1] += lookups(tm, probes);
+            s = System.nanoTime(); for (Medicine m : tm.values()) sink += m.qty(); t[1][2] += ms(s);
+            t[1][3] = Double.NaN;
+            check[1] = (new ArrayList<>(tm.keySet()).equals(sorted) ? "code:OK" : "code:BAD") + " added:NO (lost)";
+            // LinkedHashMap
+            s = System.nanoTime(); Map<String, Medicine> lm = new LinkedHashMap<>();
+            for (String c : insertion) lm.put(c, new Medicine(c, "m", 5)); t[2][0] += ms(s);
+            t[2][1] += lookups(lm, probes);
+            s = System.nanoTime(); List<String> k2 = new ArrayList<>(lm.keySet()); Collections.sort(k2); for (String c : k2) sink += lm.get(c).qty(); t[2][2] += ms(s);
+            s = System.nanoTime(); for (Medicine m : lm.values()) sink += m.qty(); t[2][3] += ms(s);
+            check[2] = (k2.equals(sorted) ? "code:OK(sorted)" : "code:BAD") + (new ArrayList<>(lm.keySet()).equals(insertion) ? " added:OK" : " added:BAD");
+            // sorted array + binarySearch
+            s = System.nanoTime(); Medicine[] arr = new Medicine[n]; int i = 0;
+            for (String c : insertion) arr[i++] = new Medicine(c, "m", 5);
+            Arrays.sort(arr, Comparator.comparing(Medicine::code)); t[3][0] += ms(s);
+            s = System.nanoTime(); Medicine key;
+            for (String p : probes) { int ix = Arrays.binarySearch(arr, new Medicine(p, "", 0), Comparator.comparing(Medicine::code)); sink += arr[ix].qty(); } t[3][1] += ms(s);
+            s = System.nanoTime(); for (Medicine m : arr) sink += m.qty(); t[3][2] += ms(s);
+            t[3][3] = Double.NaN; check[3] = "code:OK added:NO (lost)";
+        }
+        if (!print) return;
+        String[] names = {"HashMap", "TreeMap", "LinkedHashMap", "sorted[]+bsearch"};
+        for (int m = 0; m < 4; m++)
+            System.out.printf("%-8d %-16s %10.2f %12.2f %14.2f %14s %s%n", n, names[m], t[m][0] / R, t[m][1] / R, t[m][2] / R,
+                Double.isNaN(t[m][3]) ? "n/a" : String.format("%.2f", t[m][3] / R), check[m]);
+        System.out.println();
+    }
+    static double lookups(Map<String, Medicine> m, String[] probes) {
+        long s = System.nanoTime();
+        for (String p : probes) sink += m.get(p).qty();
+        return ms(s);
+    }
+}
